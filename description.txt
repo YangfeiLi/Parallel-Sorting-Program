@@ -1,0 +1,7 @@
+1) These two graphs are almost same. Sorting by thread is a little bit faster than sorting by process.
+
+2) Trend: the run time decreases sharply after N = 1 in these two graphs. 
+
+3-1) The difference mentioned in 1) is because inter-thread communication is simpler than inter-process communication. Context switches between threads are faster than that between processes.
+
+3-2) The trend mentioned in 2) is because more than one thread or process run concurrently when N > 1, which will obviously increase the sorting speed and thus less run time.

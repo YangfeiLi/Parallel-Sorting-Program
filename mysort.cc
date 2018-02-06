@@ -214,7 +214,7 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
     else if (pid == 0)
     {
         /* child process */
-        // child read from the down pipe and sort the array
+        // child read from the down pipe
         FILE* child_read_file = fdopen(down[pipe_id][0], "r");
         if (child_read_file == NULL) {
             fprintf(stderr, "Child read file fail!\n");
@@ -226,7 +226,7 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
         for(auto i = 0; i < nums_seg[pipe_id].size(); i++) {
             if (fgets(buf, sizeof(buf), child_read_file) != NULL) {
                 long long val = stoll(buf);
-                seg.push_back(val);
+                seg.push_back(val);e
             }
         }
 
@@ -277,10 +277,9 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
     else if (pid == 0)
     {
         /* child process */
-        // child transfer the sorted array to parent
+        // child sort and transfer the sorted array to parent
         if (seg.size() > 0) {
             bubble_sort(seg);
-//            print_vector(seg);
             FILE* child_write_file = fdopen(up[pipe_id][1], "w");
             if (child_write_file == NULL) {
                 fprintf(stderr, "Child write file fail!\n");
