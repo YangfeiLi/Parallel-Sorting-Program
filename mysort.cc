@@ -20,8 +20,6 @@ void sort_by_threads(int n, vector<vector<long long> > &nums_seg);
 
 int main(int argc, char *argv[])
 {
-    print_guideline();  // print the usage guideline
-
     if (argc <= 1) {    // invalid input
         fprintf(stderr, "Fullname: Yangfei Li\nSEAS login: lyf\n");
         printf("Invalid input!\n");
@@ -49,6 +47,7 @@ int main(int argc, char *argv[])
                 break;
             default:        // sort by processes
                 fprintf(stderr, "Undefined option!\n");
+                print_guideline();  // print the usage guideline
                 printf("Undefined option! Please enter according to the guideline!\n");
                 exit(1);
         }
@@ -74,23 +73,23 @@ int main(int argc, char *argv[])
     switch (n)
     {
         case 1:     // sort directly
-            printf("n = 1, sort directly!\n");
+//            printf("n = 1, sort directly!\n");
             bubble_sort(nums);
             print_vector(nums);
             return 0;
         default:    // sort by subprocess or threads
-            printf("n > 1, sort by subprocess or threads!\n");
+//            printf("n > 1, sort by subprocess or threads!\n");
             vector< vector < long long > > nums_seg;
             segment_vector(n, nums, nums_seg);
 
             switch (thread_flag)
             {
                 case 1:     // sort by threads
-                    printf("sort by thread\n");
+//                    printf("sort by thread\n");
                     sort_by_threads(n, nums_seg);
                     break;
                 default:    // sort by processes
-                    printf("sort by process\n");
+//                    printf("sort by process\n");
                     sort_by_process(n, nums_seg);
             }
 
@@ -167,7 +166,7 @@ void bubble_sort(vector<long long> &nums)
 void print_vector(vector<long long> &nums)
 {
     for (long long i = 0; i < nums.size(); ++i) {
-        printf("%lld\t%lld\n", i + 1, nums[i]);
+        printf("%lld\n", nums[i]);
     }
 }
 
@@ -264,10 +263,14 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
 
             fclose(parent_read_file);
             close(up[i][0]);
-
-            // wait all the children to finish
-            for (int i = 0; i < n; i++) {
-                wait(NULL);
+        }
+        // wait all the children to finish
+        for (int i = 0; i < n; i++) {
+            int status;
+            int return_val = wait(&status);
+            if (return_val == -1){
+                perror("wait error\n");
+                exit(-1);
             }
         }
     }
@@ -277,6 +280,7 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
         // child transfer the sorted array to parent
         if (seg.size() > 0) {
             bubble_sort(seg);
+//            print_vector(seg);
             FILE* child_write_file = fdopen(up[pipe_id][1], "w");
             if (child_write_file == NULL) {
                 fprintf(stderr, "Child write file fail!\n");
