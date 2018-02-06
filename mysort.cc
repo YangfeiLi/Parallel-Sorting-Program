@@ -5,7 +5,7 @@
 #include <fstream>
 using namespace std;
 
-
+void print_guideline();
 void segment_vector(int n, vector<long long > nums, vector< vector< long long > > &nums_seg);
 void swap(long long *a, long long *b);
 void bubble_sort(vector<long long> &nums);
@@ -15,15 +15,14 @@ void pipe_config(int& pid, int& pipe_id, int n, int down[n][2], int up[n][2]);
 void merge_segments(vector< vector< long long > > &nums_seg);
 vector<long long> merge(vector<long long> left, vector<long long> right);
 void* bubble_sort_by_threads(void* segment);
-void sort_using_threads(int n, vector< vector<long long > > &nums_seg);
+void sort_by_threads(int n, vector<vector<long long> > &nums_seg);
 
 
 int main(int argc, char *argv[])
 {
-    cout << "==================================================================================" << "\n";
-    cout << "Input Guideline: " << argv[0] << " [-n num_of_process] [-t] [-L] [target files...]\n";
-    cout << "==================================================================================" << "\n";
-    if (argc <= 1) {
+    print_guideline();  // print the usage guideline
+
+    if (argc <= 1) {    // invalid input
         fprintf(stderr, "Fullname: Yangfei Li\nSEAS login: lyf\n");
         printf("Invalid input!\n");
         exit(1);
@@ -34,10 +33,10 @@ int main(int argc, char *argv[])
     int lexicographic_flag = 0;
 
     int c;
-    while ((c = getopt (argc, argv, "n:tL")) != -1) {
+    while ((c = getopt (argc, argv, "n:t")) != -1) {   // parse input
         switch (c)
         {
-            case 'n':
+            case 'n':       // number of processes/threads
                 n = atoi(optarg);
                 if (n <= 0) {
                     fprintf(stderr, "Invalid number of processes.\n");
@@ -45,21 +44,18 @@ int main(int argc, char *argv[])
                     exit(1);
                 }
                 break;
-            case 't':
+            case 't':       // sort by thread
                 thread_flag = 1;
                 break;
-            case 'L':
-                lexicographic_flag = 1;
-                break;
-            default:
+            default:        // sort by processes
                 fprintf(stderr, "Undefined option!\n");
                 printf("Undefined option! Please enter according to the guideline!\n");
                 exit(1);
         }
     }
 
-    vector <long long> nums;
-    for (int i = optind; i < argc; i++) {
+    vector <long long> nums;    // store the numbers in a vector
+    for (int i = optind; i < argc; i++) {       // parse the file
         ifstream inFile(argv[i]);
 
         long long cur_num = 0;
@@ -77,32 +73,32 @@ int main(int argc, char *argv[])
 
     switch (n)
     {
-        case 1:
+        case 1:     // sort directly
             printf("n = 1, sort directly!\n");
             bubble_sort(nums);
             print_vector(nums);
             return 0;
-        default:
+        default:    // sort by subprocess or threads
             printf("n > 1, sort by subprocess or threads!\n");
             vector< vector < long long > > nums_seg;
             segment_vector(n, nums, nums_seg);
 
             switch (thread_flag)
             {
-                case 1:
-                    sort_using_threads(n, nums_seg);
+                case 1:     // sort by threads
+                    printf("sort by thread\n");
+                    sort_by_threads(n, nums_seg);
                     break;
-                default:
-                    printf("\nstart sort by process\n");
+                default:    // sort by processes
+                    printf("sort by process\n");
                     sort_by_process(n, nums_seg);
             }
 
-            printf("sort finished\n");
-            merge_segments(nums_seg);
-            printf("merge finished\n");
-            nums = nums_seg[0];
-            print_vector(nums);
+            merge_segments(nums_seg);   // merge the sorted vectors
+            nums = nums_seg[0];         // take out sorted result from the number segments
+            print_vector(nums);         // print the result
 
+            // clear memory
             for (vector<long long> seg : nums_seg) {
                 seg.clear();
             }
@@ -113,6 +109,19 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+/*
+ * print the usage guideline of the program
+ */
+void print_guideline()
+{
+    cout << "==================================================================================" << "\n";
+    cout << "Input Guideline: ./mysort [-n num_of_process] [-t] [-L] [target files...]\n";
+    cout << "==================================================================================" << "\n";
+}
+
+/*
+ * segment the long vecter into segments for each thread/process
+ */
 void segment_vector(int n, vector<long long > nums, vector< vector< long long > > &nums_seg)
 {
     auto size = nums.size() / n;
@@ -128,6 +137,9 @@ void segment_vector(int n, vector<long long > nums, vector< vector< long long > 
     }
 }
 
+/*
+ * swap operation in sort
+ */
 void swap(long long *a, long long *b)
 {
     long long temp = *a;
@@ -135,6 +147,9 @@ void swap(long long *a, long long *b)
     *b = temp;
 }
 
+/*
+ * bubble sort by process
+ */
 void bubble_sort(vector<long long> &nums)
 {
     for (auto i = 0; i < nums.size() - 1; i ++) {
@@ -146,6 +161,9 @@ void bubble_sort(vector<long long> &nums)
     }
 }
 
+/*
+ * print the vector
+ */
 void print_vector(vector<long long> &nums)
 {
     for (long long i = 0; i < nums.size(); ++i) {
@@ -153,6 +171,15 @@ void print_vector(vector<long long> &nums)
     }
 }
 
+/*
+ * sort by process: create up and down pipes for each process
+ * - In down pipe:
+ *      - parent process write original data
+ *      - child read the data
+ * - In up pipe:
+ *      - child process write the sorted data
+ *      - parent read the sorted data and wait for all the children to finish
+ */
 void sort_by_process(int n, vector< vector< long long > > &nums_seg)
 {
     int down[n][2];
@@ -160,16 +187,15 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
     int pid;
     int pipe_id;
 
+    // initialize the pipes and close some ends
     pipe_config(pid, pipe_id, n, down, up);
-    printf("pid %d start work!\n", pid);
-
 
     // IPC in the down pipes;
-    printf("IPC in the down pipes\n");
     vector<long long> seg; // store the sorted numbers
     if (pid > 0) {
         /* parent  process */
         for (int i = 0; i < n; ++i) {
+            // transfer the original data to child process
             FILE* parent_write_file = fdopen(down[i][1], "w");
             if (parent_write_file == NULL) {
                 fprintf(stderr, "Parent write file fail!\n");
@@ -184,7 +210,7 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
             fclose(parent_write_file);
             close(down[i][1]);
         }
-        printf("parent write successfully!\n");
+        // parent write successfully
     }
     else if (pid == 0)
     {
@@ -196,19 +222,18 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
             printf("Child read file fail!\n");
             exit(1);
         }
-//        printf("child read numbers:\n");
+
         char buf[100];
         for(auto i = 0; i < nums_seg[pipe_id].size(); i++) {
             if (fgets(buf, sizeof(buf), child_read_file) != NULL) {
                 long long val = stoll(buf);
-//                printf("%lld\n", val);
                 seg.push_back(val);
             }
         }
 
         fclose(child_read_file);
         close(down[pipe_id][0]);
-        printf("child read successfully!\n");
+        // child read successfully
     }
     else
     {
@@ -218,10 +243,9 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
     }
 
     // IPC in the up pipes;
-    printf("IPC in the up pipes\n");
     if (pid > 0) {
         /* parent  process */
-//        printf("parent process\n");
+        // parent process read the sorted data
         for (auto i = 0; i < n; ++i) {
             FILE* parent_read_file = fdopen(up[i][0], "r");
             if (parent_read_file == NULL) {
@@ -234,15 +258,14 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
             for (long long &num : nums_seg[i]) {
                 if (fgets(buf, sizeof(buf), parent_read_file) != NULL) {
                     long long val = stoll(buf);
-//                    printf("%lld\n", val);
                     num = val;
                 }
             }
 
             fclose(parent_read_file);
             close(up[i][0]);
-            printf("parent read successfully!\n");
 
+            // wait all the children to finish
             for (int i = 0; i < n; i++) {
                 wait(NULL);
             }
@@ -251,8 +274,7 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
     else if (pid == 0)
     {
         /* child process */
-        // child read from the down pipe and sort the array
-//        printf("child process");
+        // child transfer the sorted array to parent
         if (seg.size() > 0) {
             bubble_sort(seg);
             FILE* child_write_file = fdopen(up[pipe_id][1], "w");
@@ -268,7 +290,7 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
 
             fclose(child_write_file);
             close(up[pipe_id][1]);
-            printf("Child write successfully!\n");
+            // Child write successfully
             exit(0);
         } else {
             fprintf(stderr, "No data read from pipe! (sort by process)\n");
@@ -286,6 +308,11 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg)
     seg.clear();
 }
 
+/*
+ * Fork n child processes and initialize the pipes
+ * Close the read-end of down pipe and write-end of up pipe for parent process
+ * Close the read-end of up pipe and write-end of down pipe for child process
+ */
 void pipe_config(int& pid, int& pipe_id, int n, int down[n][2], int up[n][2])
 {
     for (int i = 0; i < n; ++ i) {
@@ -295,13 +322,13 @@ void pipe_config(int& pid, int& pipe_id, int n, int down[n][2], int up[n][2])
 
         if (pid > 0) {
             /* parent  process */
-            close(down[i][0]);
-            close(up[i][1]);
+            close(down[i][0]);      // read end of down pipe
+            close(up[i][1]);        // write end of up pipe
         } else if (pid == 0) {
             /* child process */
             pipe_id = i;
-            close(down[i][1]);
-            close(up[i][0]);
+            close(down[i][1]);      // write end of down pipe
+            close(up[i][0]);        // read end of up pipe
             break;
         } else {
             fprintf(stderr, "Fork error!");
@@ -311,6 +338,9 @@ void pipe_config(int& pid, int& pipe_id, int n, int down[n][2], int up[n][2])
     }
 }
 
+/*
+ * merge two sorted vectors
+ */
 vector<long long> merge(vector<long long> left, vector<long long> right)
 {
     vector<long long> merged_vector;
@@ -335,18 +365,28 @@ vector<long long> merge(vector<long long> left, vector<long long> right)
     return merged_vector;
 }
 
+/*
+ * merge sorted vectors;
+ */
 void merge_segments(vector< vector<long long > > &nums_seg)
 {
     while(nums_seg.size() > 1) {
+        // merge the vectors two by two
         nums_seg.push_back(merge(nums_seg[0], nums_seg[1]));
+        // remove the two sorted vectors
         nums_seg.erase(nums_seg.begin());
         nums_seg.erase(nums_seg.begin());
-    }
+    }   // At last, only the long sorted vector stays in the nums_seg
 }
 
-void sort_using_threads(int n, vector<vector<long long > > &nums_seg)
+/*
+ * sort by threads
+ * - create n threads and for each thread, give it a segment for sorting.
+ * - after sorting, the thread read the sorted data from the pipe and push it back to the segment
+ * - wait for all the threads finish
+ */
+void sort_by_threads(int n, vector<vector<long long> > &nums_seg)
 {
-    printf("sort by thread!\n");
     // create thread and pipe array;
     pthread_t tids[n];
     int up[n][2];
@@ -363,6 +403,7 @@ void sort_using_threads(int n, vector<vector<long long > > &nums_seg)
             printf("Empty number segments");
             exit(1);
         } else {
+            // create a thread and let this thread sort this segment
             int errorno = pthread_create(&tids[i], NULL, bubble_sort_by_threads, &nums_seg[i]);
             if (errorno != 0) {
                 fprintf(stderr, "Error when create threads, error number is %d", errorno);
@@ -373,8 +414,9 @@ void sort_using_threads(int n, vector<vector<long long > > &nums_seg)
     }
 
     vector <long long> segment;
-    if (0 == pthread_self())
+    if (pthread_self() == 0)
     {
+        // read the sorted data
         FILE *child_read_file = fdopen(down[pipe_id][0], "r");
         if (child_read_file == NULL)
         {
@@ -387,6 +429,7 @@ void sort_using_threads(int n, vector<vector<long long > > &nums_seg)
             char buf[100];
             for(int i = 0; i < nums_seg[pipe_id].size(); i++)
             {
+                // push the sorted data into the segment vector
                 fgets(buf, sizeof(buf), child_read_file);
                 long long val = stoll(buf);
                 segment.push_back(val);
@@ -395,6 +438,7 @@ void sort_using_threads(int n, vector<vector<long long > > &nums_seg)
         }
     }
 
+    // thread wait
     void *status;
     for (int i = 0; i < n; ++ i) {
         if (nums_seg[i].size() > 0) {
@@ -406,6 +450,7 @@ void sort_using_threads(int n, vector<vector<long long > > &nums_seg)
         }
     }
 
+    // close pipes
     for (int i = 0; i < n; ++i) {
         close(down[i][0]);
         close(down[i][1]);
@@ -414,6 +459,9 @@ void sort_using_threads(int n, vector<vector<long long > > &nums_seg)
     }
 }
 
+/*
+ * bubble sort method for threads because pthread_create() need a void* start_routine
+ */
 void* bubble_sort_by_threads(void* segment)
 {
     vector< long long >* nums = (vector< long long >*) segment;
@@ -427,3 +475,4 @@ void* bubble_sort_by_threads(void* segment)
 
     pthread_exit(0);
 }
+
