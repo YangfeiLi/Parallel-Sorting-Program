@@ -14,6 +14,8 @@ void sort_by_process(int n, vector< vector < long long > > &nums_seg);
 void pipe_config(int& pid, int& pipe_id, int n, int down[n][2], int up[n][2]);
 void merge_segments(vector< vector< long long > > &nums_seg);
 vector<long long> merge(vector<long long> left, vector<long long> right);
+void* bubble_sort_by_threads(void* segment);
+void sort_using_threads(int n, vector< vector<long long > > &nums_seg);
 
 int main(int argc, char *argv[])
 {
@@ -88,28 +90,22 @@ int main(int argc, char *argv[])
             vector< vector < long long > > nums_seg;
             segment_vector(n, nums, nums_seg);
 
-//            // check the segments
-//            for (int j = 0; j < nums_seg.size(); ++j) {
-//                cout << j << ":\n";
-//                for (int k = 0; k < nums_seg[j].size(); ++k) {
-//                    cout << nums_seg[j][k] << "\n";
-//                }
-//            }
-
             switch (thread_flag)
             {
                 case 1:
+                    sort_using_threads(n, nums_seg);
                     break;
                 default:
                     printf("\nstart sort by process\n");
                     sort_by_process(n, nums_seg);
-                    printf("sort finished\n");
-                    merge_segments(nums_seg);
-                    printf("merge finished\n");
-                    nums = nums_seg[0];
             }
 
+            printf("sort finished\n");
+            merge_segments(nums_seg);
+            printf("merge finished\n");
+            nums = nums_seg[0];
             print_vector(nums);
+
             for (vector<long long> seg : nums_seg) {
                 seg.clear();
             }
@@ -120,7 +116,8 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void segment_vector(int n, vector<long long > nums, vector< vector< long long > > &nums_seg) {
+void segment_vector(int n, vector<long long > nums, vector< vector< long long > > &nums_seg)
+{
     auto size = nums.size() / n;
     auto counter = 0;
     while (counter < nums.size()) {
@@ -134,13 +131,15 @@ void segment_vector(int n, vector<long long > nums, vector< vector< long long > 
     }
 }
 
-void swap(long long *a, long long *b) {
+void swap(long long *a, long long *b)
+{
     long long temp = *a;
     *a = *b;
     *b = temp;
 }
 
-void bubble_sort(vector<long long> &nums) {
+void bubble_sort(vector<long long> &nums)
+{
     for (auto i = 0; i < nums.size() - 1; i ++) {
         for (auto j = 0; j < nums.size() - i - 1; j ++) {
             if (nums[j] > nums[j + 1]) {
@@ -150,13 +149,15 @@ void bubble_sort(vector<long long> &nums) {
     }
 }
 
-void print_vector(vector<long long> &nums) {
+void print_vector(vector<long long> &nums)
+{
     for (long long i = 0; i < nums.size(); ++i) {
         printf("%lld\t%lld\n", i + 1, nums[i]);
     }
 }
 
-void sort_by_process(int n, vector< vector< long long > > &nums_seg) {
+void sort_by_process(int n, vector< vector< long long > > &nums_seg)
+{
     int down[n][2];
     int up[n][2];
     int pid;
@@ -288,7 +289,8 @@ void sort_by_process(int n, vector< vector< long long > > &nums_seg) {
     seg.clear();
 }
 
-void pipe_config(int& pid, int& pipe_id, int n, int down[n][2], int up[n][2]) {
+void pipe_config(int& pid, int& pipe_id, int n, int down[n][2], int up[n][2])
+{
     for (int i = 0; i < n; ++ i) {
         pipe(up[i]);
         pipe(down[i]);
@@ -312,7 +314,8 @@ void pipe_config(int& pid, int& pipe_id, int n, int down[n][2], int up[n][2]) {
     }
 }
 
-vector<long long> merge(vector<long long> left, vector<long long> right) {
+vector<long long> merge(vector<long long> left, vector<long long> right)
+{
     vector<long long> merged_vector;
     auto i = 0, j = 0;
     while (i < left.size() && j < right.size()) {
@@ -335,7 +338,8 @@ vector<long long> merge(vector<long long> left, vector<long long> right) {
     return merged_vector;
 }
 
-void merge_segments(vector< vector<long long > > &nums_seg) {
+void merge_segments(vector< vector<long long > > &nums_seg)
+{
     while(nums_seg.size() > 1) {
         nums_seg.push_back(merge(nums_seg[0], nums_seg[1]));
         nums_seg.erase(nums_seg.begin());
@@ -343,13 +347,78 @@ void merge_segments(vector< vector<long long > > &nums_seg) {
     }
 }
 
-void sort_using_threads(int n, vector< vector<long long > > &nums_seg) {
+void sort_using_threads(int n, vector<vector<long long > > &nums_seg)
+{
+    // create thread and pipe array;
+    pthread_t tids[n];
+    int up[n][2];
+    int down[n][2];
+    int pipe_id;
 
+    for (int i = 0; i < n; ++i) {
+        // initialize pipes
+        pipe_id = i;
+        pipe(down[i]);
+        pipe(up[i]);
+        if (nums_seg[i].size() <= 0) {      // error
+            fprintf(stderr, "Empty number segments\n");
+            printf("Empty number segments");
+            exit(1);
+        } else {
+            int errorno = pthread_create(&tids[i], NULL, bubble_sort_by_threads, &nums_seg[i]);
+            if (errorno != 0) {
+                fprintf(stderr, "Error when create threads, error number is %d", errorno);
+                printf("Error when create threads, error number is %d", errorno);
+                exit(1);
+            }
+        }
+    }
+
+    vector <long long> segment;
+    if (0 == pthread_self())
+    {
+        FILE *child_read_file = fdopen(down[pipe_id][0], "r");
+        if (child_read_file == NULL)
+        {
+            fprintf(stderr, "Child thread read fail!");
+            printf("Child thread read fail!");
+            exit(1);
+        }
+        else
+        {
+            char buf[100];
+            for(int i = 0; i < nums_seg[pipe_id].size(); i++)
+            {
+                fgets(buf, sizeof(buf), child_read_file);
+                long long val = stoll(buf);
+                segment.push_back(val);
+            }
+            fclose(child_read_file);
+        }
+    }
+
+    void *status;
+    for (int i = 0; i < n; ++ i) {
+        if (nums_seg[i].size() > 0) {
+            pthread_join(tids[i], &status);
+        } else {
+            fprintf(stderr, "Empty segment");
+            printf("Empty segment");
+            exit(0);
+        }
+    }
+
+    for (int i = 0; i < n; ++i) {
+        close(down[i][0]);
+        close(down[i][1]);
+        close(up[i][0]);
+        close(up[i][1]);
+    }
 }
 
-void* bubble_sort_by_threads(void* vp) {
-    auto* nums = (vector< long long >*) vp;
-
+void* bubble_sort_by_threads(void* segment)
+{
+    vector< long long >* nums = (vector< long long >*) segment;
     for (auto i = 0; i < (*nums).size() - 1; i++) {
         for (auto j = 0; j < (*nums).size() - i - 1; j++) {
             if ((*nums)[j] > (*nums)[j + 1]) {
