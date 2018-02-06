@@ -3,8 +3,8 @@
 #include <unistd.h>
 #include <vector>
 #include <fstream>
-
 using namespace std;
+
 
 void segment_vector(int n, vector<long long > nums, vector< vector< long long > > &nums_seg);
 void swap(long long *a, long long *b);
@@ -17,8 +17,12 @@ vector<long long> merge(vector<long long> left, vector<long long> right);
 void* bubble_sort_by_threads(void* segment);
 void sort_using_threads(int n, vector< vector<long long > > &nums_seg);
 
+
 int main(int argc, char *argv[])
 {
+    cout << "==================================================================================" << "\n";
+    cout << "Input Guideline: " << argv[0] << " [-n num_of_process] [-t] [-L] [target files...]\n";
+    cout << "==================================================================================" << "\n";
     if (argc <= 1) {
         fprintf(stderr, "Fullname: Yangfei Li\nSEAS login: lyf\n");
         printf("Invalid input!\n");
@@ -28,10 +32,9 @@ int main(int argc, char *argv[])
     int n = 4;
     int thread_flag = 0;
     int lexicographic_flag = 0;
-    int sharedMemory_flag = 0;
 
     int c;
-    while ((c = getopt (argc, argv, "n:tLs")) != -1) {
+    while ((c = getopt (argc, argv, "n:tL")) != -1) {
         switch (c)
         {
             case 'n':
@@ -43,18 +46,14 @@ int main(int argc, char *argv[])
                 }
                 break;
             case 't':
-                if (sharedMemory_flag == 0) thread_flag = 1;
+                thread_flag = 1;
                 break;
             case 'L':
                 lexicographic_flag = 1;
                 break;
-            case 's':
-                thread_flag = 0;
-                sharedMemory_flag = 1;
-                break;
             default:
                 fprintf(stderr, "Undefined option!\n");
-                printf("Undefined option!\n");
+                printf("Undefined option! Please enter according to the guideline!\n");
                 exit(1);
         }
     }
@@ -75,8 +74,6 @@ int main(int argc, char *argv[])
             exit(1);
         }
     }
-    printf("Before sort:\n");
-    print_vector(nums);
 
     switch (n)
     {
@@ -349,6 +346,7 @@ void merge_segments(vector< vector<long long > > &nums_seg)
 
 void sort_using_threads(int n, vector<vector<long long > > &nums_seg)
 {
+    printf("sort by thread!\n");
     // create thread and pipe array;
     pthread_t tids[n];
     int up[n][2];
